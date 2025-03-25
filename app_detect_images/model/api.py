@@ -1,11 +1,19 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
-import io
-#from modelo import model
+import shutil
+import os
+from Modelo import model
 
 
 app = FastAPI()
+
+UPLOAD_FOLDER = "imagenes"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Montar la carpeta "imagenes" como estática (para acceder a las imágenes)
+app.mount("/imagenes", StaticFiles(directory="imagenes"), name="imagenes")
 
 @app.post("/upload/")
 async def upload_image(file: UploadFile = File(...)):
@@ -14,13 +22,17 @@ async def upload_image(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Solo se permiten imágenes JPG o PNG")
     
     try:
-        # Leer el archivo en memoria
-        image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes))
-        #obj_model = model(image)
-        #prediction = obj_model.prediction()
+       # Define la ruta donde se almacenará el archivo
+        file_path = f"imagenes/{file.filename}"
         
-        return JSONResponse(content={"filename": file.filename, "format": image.format, "size": image.size})
+        # Guarda la imagen en el disco
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        obj_model = model(file_path)
+        prediction = obj_model.prediction()
+        
+        return JSONResponse(content={"Resultado": prediction})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al procesar la imagen: {str(e)}")
 
@@ -29,3 +41,4 @@ async def upload_image(file: UploadFile = File(...)):
 #main: Es el nombre del archivo (sin la extensión .py).
 
 #app: Es el nombre de la variable que contiene la instancia de FastAPI en tu archivo main.py.
+#si no esta en raiz entonces uvicorn model.api:app --reload
